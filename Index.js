@@ -43,29 +43,75 @@
 
 const express = require("express");
 const app = express();
-const users = require("./MOCK_DATA.json");
+// const users = require("./MOCK_DATA.json");
 const fs = require("fs");
+
+const mongoose = require("mongoose");
 
 const PORT = 8000;
 
 app.use(express.urlencoded({ extended: false }));
+// connect
+mongoose
+  .connect("mongodb://127.0.0.1:27017/first-database")
+  .then(() => console.log("mongodb connected"))
+  .catch((err) => console.log("Mongo Error", err));
+
+// schema
+const useSchema = new mongoose.Schema(
+  {
+    firstName: {
+      type: String,
+      require: true,
+    },
+    lastName: {
+      type: String,
+    },
+    email: {
+      type: String,
+      require: true,
+      unique: true,
+    },
+    jobTitle: {
+      type: String,
+    },
+    gender: {
+      type: String,
+    },
+  },
+  { timestamps: true }
+);
+
+// modal
+const User = mongoose.model("user", useSchema);
 
 // Route
 
-app.get("/api/users/", (req, res) => {
-  return res.json(users);
+app.get("/users", async (req, res) => {
+  const allDbuser = await User.find({});
+  const html = `
+  <ul>
+  ${allDbuser.map((user) => `<li>${user.firstName}</li>`).join("")}
+  </ul>
+  `;
+  return res.send(html);
 });
 
 app
   .route("/api/users/:id")
-  .get((req, res) => {
-    const id = Number(req.params.id);
-    const finduser = users.find((user) => user.id === id);
-    return res.json(finduser);
+  .get(async (req, res) => {
+    // const id = Number(req.params.id);
+    // const finduser = users.find((user) => user.id === id);
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ error: "user not found" });
+    return res.json(user);
   })
-  .patch((req, res) => {
+  .patch(async (req, res) => {
     // const body = req.body
-    return res.json({ status: "Pending" });
+    await User.findByIdAndUpdate(req.params.id, {
+      lastName: "BSDK",
+    });
+    return res.json(user);
   })
   .delete((req, res) => {
     const deletuser = req.body;
@@ -75,14 +121,37 @@ app
     return res.json({ status: "Pending" });
   });
 
-app.post("/api/users", (req, res) => {
+app.post("/api/users", async (req, res) => {
   const body = req.body;
-  users.push({ ...body, id: users.length + 1 });
-  fs.writeFile("./MOCK_DATA.json", JSON.stringify(users), (err, data) => {
-    return res.json(users);
+  if (
+    !body ||
+    !body.first_name ||
+    !body.last_name ||
+    !body.email ||
+    !body.gender ||
+    !body.job_title
+  ) {
+    return req.status(400).json({ msg: "All field are req.." });
+  }
+  const result = await User.create({
+    firstName: body.first_name,
+    lastName: body.last_name,
+    email: body.email,
+    gender: body.gender,
+    jobTitle: body.job_title,
   });
-  // console.log("added data", body);
+  console.log("result", result);
+  return res.status(201).json({ msg: "Succes" });
 });
+
+// app.post("/api/users", (req, res) => {
+//   const body = req.body;
+//   users.push({ ...body, id: users.length + 1 });
+//   fs.writeFile("./MOCK_DATA.json", JSON.stringify(users), (err, data) => {
+//     return res.json(users);
+//   });
+//   // console.log("added data", body);
+// });
 
 app.listen(PORT, () => {
   console.log("server get started");
